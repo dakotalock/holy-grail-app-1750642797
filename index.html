@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AetherBloom: Ephemeral Ecosystems</title>
+    <!-- Tailwind CSS CDN for rapid styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Base styles to remove default browser margins and hide overflow */
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        /* Ensure canvas is a block element to prevent extra space below */
+        canvas { display: block; }
+
+        /* Control Panel Styles */
+        #control-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 300px; /* Fixed width for desktop */
+            height: 100vh;
+            background-color: rgba(31, 41, 55, 0.9); /* Tailwind gray-800 with opacity for semi-transparency */
+            color: white;
+            padding: 1rem;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.5); /* Subtle shadow for depth */
+            transform: translateX(100%); /* Initially off-screen */
+            transition: transform 0.3s ease-in-out; /* Smooth transition for opening/closing */
+            z-index: 1000; /* Ensure it's above the canvas */
+            overflow-y: auto; /* Enable scrolling for many controls */
+        }
+        #control-panel.open {
+            transform: translateX(0); /* Slide into view */
+        }
+
+        /* Toggle Button for Control Panel */
+        #toggle-panel-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background-color: rgba(31, 41, 55, 0.7);
+            color: white;
+            border: none;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem; /* Rounded corners */
+            cursor: pointer;
+            z-index: 1001; /* Above control panel */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            font-size: 1.25rem; /* Larger icon */
+        }
+
+        /* Info Display (FPS, Particle Count) */
+        #info-display {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background-color: rgba(31, 41, 55, 0.7);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            z-index: 999; /* Below control panel but above canvas */
+        }
+
+        /* Styling for control groups */
+        .control-group {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1); /* Separator line */
+        }
+        .control-group:last-child {
+            border-bottom: none; /* No separator for the last group */
+        }
+        .control-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+
+        /* Slider specific styles */
+        .slider-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .slider-container label {
+            flex-grow: 1; /* Label takes available space */
+            margin-right: 0.5rem;
+            white-space: nowrap; /* Prevent label wrapping */
+        }
+        .slider-container input[type="range"] {
+            flex-grow: 2; /* Slider takes more space than label */
+            margin-right: 0.5rem;
+            -webkit-appearance: none; /* Remove default styling for Chrome/Safari */
+            appearance: none; /* Remove default styling for modern browsers */
+            height: 4px;
+            background: #4B5563; /* Tailwind gray-600 */
+            border-radius: 2px;
+            outline: none;
+        }
+        /* Custom thumb styles for sliders */
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #6EE7B7; /* Tailwind emerald-300 */
+            cursor: pointer;
+            box-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+        .slider-container input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #6EE7B7;
+            cursor: pointer;
+            box-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+        .slider-value {
+            min-width: 40px; /* Ensure value display doesn't jump */
+            text-align: right;
+            font-size: 0.875rem;
+            color: #9CA3AF; /* Tailwind gray-400 */
+        }
+
+        /* Toggle Switch styles (custom checkbox) */
+        .toggle-switch-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 38px;
+            height: 22px;
+            margin-right: 0.75rem;
+        }
+        .toggle-switch input {
+            opacity: 0; /* Hide default checkbox */
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #4B5563; /* Tailwind gray-600 */
+            transition: .4s;
+            border-radius: 22px; /* Pill shape */
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%; /* Circle thumb */
+        }
+        input:checked + .toggle-slider {
+            background-color: #6EE7B7; /* Tailwind emerald-300 when checked */
+        }
+        input:focus + .toggle-slider {
+            box-shadow: 0 0 1px #6EE7B7; /* Focus outline */
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(16px); /* Move thumb when checked */
+        }
+
+        /* Color Picker styles */
+        .color-picker-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .color-picker-container input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            border: none;
+            width: 32px;
+            height: 32px;
+            background: none;
+            cursor: pointer;
+            margin-right: 0.75rem;
+            padding: 0;
+        }
+        /* Hide default color swatch borders */
+        .color-picker-container input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        .color-picker-container input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+        .color-picker-container input[type="color"]::-moz-color-swatch-wrapper { padding: 0; }
+        .color-picker-container input[type="color"]::-moz-color-swatch { border: none; border-radius: 4px; }
+
+        /* Button styles using Tailwind's @apply directive */
+        button {
+            @apply bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded transition-colors duration-200;
+        }
+        button.action-btn {
+            @apply w-full mt-4; /* Full width and top margin for action buttons */
+        }
+
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 768px) {
+            #control-panel {
+                width: 100%; /* Full width on mobile */
+                left: 0; /* Position from left edge */
+                transform: translateX(100%); /* Still starts off-screen */
+            }
+            #control-panel.open {
+                transform: translateX(0);
+            }
+            #toggle-panel-btn {
+                right: 1rem; /* Keep button on right */
+                left: unset;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Main canvas for AetherBloom visualization -->
+    <canvas id="aetherbloom-canvas"></canvas>
+
+    <!-- Information display (FPS, Particle Count) -->
+    <div id="info-display">
+        <p>FPS: <span id="fps-display">0</span></p>
+        <p>Particles: <span id="particle-count-display">0</span></p>
+    </div>
+
+    <!-- Button to toggle the control panel on/off -->
+    <button id="toggle-panel-btn" aria-label="Toggle Control Panel">☰</button>
+
+    <!-- Control Panel Sidebar -->
+    <div id="control-panel" class="hidden md:block"> <!-- Hidden by default on mobile, visible on desktop -->
+        <h2 class="text-xl font-bold mb-4">AetherBloom Controls</h2>
+
+        <!-- Particle Properties Group -->
+        <div class="control-group">
+            <h3 class="control-label">Particle Properties</h3>
+            <div class="slider-container">
+                <label for="birthRate">Birth Rate</label>
+                <input type="range" id="birthRate" min="0" max="10" value="2" step="0.1">
+                <span class="slider-value" id="birthRate-value">2</span>
+            </div>
+            <div class="slider-container">
+                <label for="lifespan">Lifespan (s)</label>
+                <input type="range" id="lifespan" min="1" max="60" value="15" step="1">
+                <span class="slider-value" id="lifespan-value">15</span>
+            </div>
+            <div class="slider-container">
+                <label for="initialSpeed">Initial Speed</label>
+                <input type="range" id="initialSpeed" min="0.1" max="10" value="2" step="0.1">
+                <span class="slider-value" id="initialSpeed-value">2</span>
+            </div>
+            <div class="slider-container">
+                <label for="minSize">Min Size</label>
+                <input type="range" id="minSize" min="1" max="10" value="3" step="0.1">
+                <span class="slider-value" id="minSize-value">3</span>
+            </div>
+            <div class="slider-container">
+                <label for="maxSize">Max Size</label>
+                <input type="range" id="maxSize" min="5" max="20" value="8" step="0.1">
+                <span class="slider-value" id="maxSize-value">8</span>
+            </div>
+            <div class="toggle-switch-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="fadeOnDeath" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+                <label for="fadeOnDeath">Fade on Death</label>
+            </div>
+            <div class="color-picker-container">
+                <label for="baseColor">Base Color</label>
+                <input type="color" id="baseColor" value="#6EE7B7">
+            </div>
+            <div class="color-picker-container">
+                <label for="accentColor">Accent Color</label>
+                <input type="color" id="accentColor" value="#3B82F6">
+            </div>
+        </div>
+
+        <!-- Environmental Forces Group -->
+        <div class="control-group">
+            <h3 class="control-label">Environmental Forces</h3>
+            <div class="slider-container">
+                <label for="gravityStrength">Gravity</label>
+                <input type="range" id="gravityStrength" min="-0.1" max="0.1" value="0.005" step="0.001">
+                <span class="slider-value" id="gravityStrength-value">0.005</span>
+            </div>
+            <div class="slider-container">
+                <label for="windStrength">Wind Strength</label>
+                <input type="range" id="windStrength" min="-0.05" max="0.05" value="0" step="0.001">
+                <span class="slider-value" id="windStrength-value">0</span>
+            </div>
+            <div class="slider-container">
+                <label for="windDirection">Wind Direction</label>
+                <input type="range" id="windDirection" min="0" max="360" value="90" step="1">
+                <span class="slider-value" id="windDirection-value">90</span>
+            </div>
+            <div class="slider-container">
+                <label for="turbulenceIntensity">Turbulence</label>
+                <input type="range" id="turbulenceIntensity" min="0" max="0.05" value="0.001" step="0.0001">
+                <span class="slider-value" id="turbulenceIntensity-value">0.001</span>
+            </div>
+        </div>
+
+        <!-- Interactions Group -->
+        <div class="control-group">
+            <h3 class="control-label">Interactions</h3>
+            <div class="slider-container">
+                <label for="attractionFactor">Attraction</label>
+                <input type="range" id="attractionFactor" min="-0.0001" max="0.0001" value="0.00001" step="0.000001">
+                <span class="slider-value" id="attractionFactor-value">0.00001</span>
+            </div>
+            <div class="slider-container">
+                <label for="repulsionFactor">Repulsion</label>
+                <input type="range" id="repulsionFactor" min="0" max="0.0001" value="0.000005" step="0.000001">
+                <span class="slider-value" id="repulsionFactor-value">0.000005</span>
+            </div>
+            <div class="slider-container">
+                <label for="interactionRadius">Interact Radius</label>
+                <input type="range" id="interactionRadius" min="10" max="200" value="50" step="1">
+                <span class="slider-value" id="interactionRadius-value">50</span>
+            </div>
+            <div class="toggle-switch-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="mouseAttractor">
+                    <span class="toggle-slider"></span>
+                </label>
+                <label for="mouseAttractor">Mouse Attractor</label>
+            </div>
+            <div class="toggle-switch-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="mouseRepeller">
+                    <span class="toggle-slider"></span>
+                </label>
+                <label for="mouseRepeller">Mouse Repeller</label>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <button id="reset-simulation-btn" class="action-btn">Reset Simulation</button>
+        <button id="randomize-params-btn" class="action-btn">Randomize Parameters</button>
+    </div>
+
+    <!-- PixiJS CDN for WebGL-accelerated 2D rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.x/dist/pixi.min.js"></script>
+
+    <script>
+        // Global state object to manage all application parameters and UI settings.
+        // This centralizes control for both the simulation and the UI.
+        const state = {
+            // Particle properties
+            birthRate: 2, // Particles per frame approx
+            lifespan: 15 * 1000, // Lifespan in milliseconds
+            initialSpeed: 2, // Initial velocity magnitude
+            minSize: 3, // Minimum particle size
+            maxSize: 8, // Maximum particle size
+            fadeOnDeath: true, // Whether particles fade out or disappear instantly
+            baseColor: 0x6EE7B7, // Base color (Emerald-300)
+            accentColor: 0x3B82F6, // Accent color (Blue-500)
+
+            // Environmental forces
+            gravityStrength: 0.005, // Downward force
+            windStrength: 0, // Magnitude of wind force
+            windDirection: 90, // Direction of wind in degrees (0=right, 90=down)
+            turbulenceIntensity: 0.001, // Random noise applied to acceleration
+
+            // Inter-particle forces
+            attractionFactor: 0.00001, // Strength of attraction between particles
+            repulsionFactor: 0.000005, // Strength of repulsion between particles
+            interactionRadius: 50, // Max distance for inter-particle interaction
+
+            // Mouse interaction
+            mouseAttractor: false, // Is mouse an attractor?
+            mouseRepeller: false, // Is mouse a repeller?
+            mouseX: 0, // Current mouse X position
+            mouseY: 0, // Current mouse Y position
+
+            // Internal simulation state
+            paused: false, // Controls simulation pause/resume
+            lastFrameTime: 0, // Timestamp of the last animation frame
+            fps: 0, // Current frames per second
+            particleCount: 0, // Current number of active particles
+        };
+
+        // --- Utility Functions ---
+
+        /** Clamps a value between a minimum and maximum. */
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(value, max));
+        }
+
+        /**
+         * Linearly interpolates between two hexadecimal colors.
+         * @param {number} color1 - The first color (e.g., 0xFF0000).
+         * @param {number} color2 - The second color.
+         * @param {number} factor - The interpolation factor (0.0 to 1.0).
+         * @returns {number} The interpolated color.
+         */
+        function lerpColor(color1, color2, factor) {
+            factor = clamp(factor, 0, 1);
+            const r1 = (color1 >> 16) & 0xFF;
+            const g1 = (color1 >> 8) & 0xFF;
+            const b1 = color1 & 0xFF;
+
+            const r2 = (color2 >> 16) & 0xFF;
+            const g2 = (color2 >> 8) & 0xFF;
+            const b2 = color2 & 0xFF;
+
+            const r = Math.round(r1 + (r2 - r1) * factor);
+            const g = Math.round(g1 + (g2 - g1) * factor);
+            const b = Math.round(b1 + (b2 - b1) * factor);
+
+            return (r << 16) | (g << 8) | b;
+        }
+
+        /** Converts a hex color number to an RGB object. */
+        function hexToRgb(hex) {
+            const r = (hex >> 16) & 0xFF;
+            const g = (hex >> 8) & 0xFF;
+            const b = hex & 0xFF;
+            return { r, g, b };
+        }
+
+        /** Converts RGB components to a hex color number. */
+        function rgbToHex(r, g, b) {
+            return (r << 16) | (g << 8) | b;
+        }
+
+        // --- UI Elements and Event Handling ---
+        // Map DOM elements to a convenient object for easy access.
+        const uiElements = {
+            birthRate: document.getElementById('birthRate'),
+            lifespan: document.getElementById('lifespan'),
+            initialSpeed: document.getElementById('initialSpeed'),
+            minSize: document.getElementById('minSize'),
+            maxSize: document.getElementById('maxSize'),
+            fadeOnDeath: document.getElementById('fadeOnDeath'),
+            baseColor: document.getElementById('baseColor'),
+            accentColor: document.getElementById('accentColor'),
+            gravityStrength: document.getElementById('gravityStrength'),
+            windStrength: document.getElementById('windStrength'),
+            windDirection: document.getElementById('windDirection'),
+            turbulenceIntensity: document.getElementById('turbulenceIntensity'),
+            attractionFactor: document.getElementById('attractionFactor'),
+            repulsionFactor: document.getElementById('repulsionFactor'),
+            interactionRadius: document.getElementById('interactionRadius'),
+            mouseAttractor: document.getElementById('mouseAttractor'),
+            mouseRepeller: document.getElementById('mouseRepeller'),
+            resetBtn: document.getElementById('reset-simulation-btn'),
+            randomizeBtn: document.getElementById('randomize-params-btn'),
+            togglePanelBtn: document.getElementById('toggle-panel-btn'),
+            controlPanel: document.getElementById('control-panel'),
+            fpsDisplay: document.getElementById('fps-display'),
+            particleCountDisplay: document.getElementById('particle-count-display'),
+        };
+
+        /** Initializes UI controls with values from the state and sets up event listeners. */
+        function setupUIListeners() {
+            // Populate UI elements with initial state values
+            for (const key in uiElements) {
+                const el = uiElements[key];
+                if (el && key in state) { // Check if element exists and corresponds to a state property
+                    if (el.type === 'range') {
+                        // Special handling for lifespan (state is ms, UI is seconds)
+                        el.value = (key === 'lifespan') ? state[key] / 1000 : state[key];
+                        document.getElementById(`${key}-value`).textContent = parseFloat(el.value).toFixed(el.step.includes('.') ? 3 : 0);
+                    } else if (el.type === 'checkbox') {
+                        el.checked = state[key];
+                    } else if (el.type === 'color') {
+                        // Convert numerical hex to CSS hex string
+                        el.value = '#' + state[key].toString(16).padStart(6, '0');
+                    }
+                }
+            }
+
+            // Add event listeners for UI controls to update the global state
+            for (const key in uiElements) {
+                const el = uiElements[key];
+                if (el && key in state) {
+                    if (el.type === 'range') {
+                        el.addEventListener('input', (e) => {
+                            let value = parseFloat(e.target.value);
+                            if (key === 'lifespan') value *= 1000; // Convert to ms for state
+                            state[key] = value;
+                            document.getElementById(`${key}-value`).textContent = parseFloat(e.target.value).toFixed(e.target.step.includes('.') ? 3 : 0);
+                        });
+                    } else if (el.type === 'checkbox') {
+                        el.addEventListener('change', (e) => {
+                            state[key] = e.target.checked;
+                        });
+                    } else if (el.type === 'color') {
+                        el.addEventListener('input', (e) => {
+                            state[key] = parseInt(e.target.value.slice(1), 16); // Convert CSS hex string to number
+                        });
+                    }
+                }
+            }
+
+            // Button specific listeners
+            uiElements.resetBtn.addEventListener('click', () => resetSimulation());
+            uiElements.randomizeBtn.addEventListener('click', () => randomizeParameters());
+
+            // Toggle panel button logic
+            uiElements.togglePanelBtn.addEventListener('click', () => {
+                uiElements.controlPanel.classList.toggle('open');
+                uiElements.controlPanel.classList.toggle('hidden'); // For mobile initial state management
+                uiElements.togglePanelBtn.textContent = uiElements.controlPanel.classList.contains('open') ? '✕' : '☰';
+            });
+
+            // Set initial visibility of control panel based on screen size
+            if (window.innerWidth <= 768) { // Mobile breakpoint
+                uiElements.controlPanel.classList.add('hidden');
+                uiElements.controlPanel.classList.remove('open');
+                uiElements.togglePanelBtn.textContent = '☰';
+            } else { // Desktop
+                uiElements.controlPanel.classList.remove('hidden');
+                uiElements.controlPanel.classList.add('open');
+                uiElements.togglePanelBtn.textContent = '✕';
+            }
+        }
+
+        // --- PixiJS Setup ---
+        const app = new PIXI.Application({
+            view: document.getElementById('aetherbloom-canvas'),
+            resizeTo: window, // Automatically resize canvas with window
+            backgroundColor: 0x1A202C, // Dark background (Tailwind gray-900)
+            antialias: true, // Smooth edges
+            resolution: window.devicePixelRatio || 1, // Use device pixel ratio for sharp rendering on high-DPI screens
+            autoDensity: true, // Ensures textures are scaled correctly with resolution
+        });
+
+        // PIXI.ParticleContainer is highly optimized for rendering large numbers of simple sprites.
+        // It's ideal for this particle system.
+        const particleContainer = new PIXI.ParticleContainer(
+            100000, // Maximum number of particles it can render (adjust based on performance needs)
+            {
+                vertices: true, // Allow position changes
+                position: true, // Required for position
+                rotation: false, // Not needed for simple circles
+                uvs: false, // Not needed for simple textures
+                tint: true, // Allow color changes
+                alpha: true, // Allow opacity changes
+                scale: true // Allow size changes
+            }
+        );
+        app.stage.addChild(particleContainer);
+
+        // --- Particle System Data Structures ---
+        const MAX_PARTICLES = 50000; // Max particles to simulate to prevent performance collapse
+        // Define byte offsets for each attribute in the shared ArrayBuffer
+        // This allows using TypedArrays for efficient memory and faster access.
+        const FLOAT32_SIZE = 4; // bytes
+        const UINT32_SIZE = 4; // bytes (for color)
+
+        // Attribute offsets in terms of Float32Array elements
+        const P_X_OFFSET = 0;
+        const P_Y_OFFSET = 1;
+        const P_VX_OFFSET = 2;
+        const P_VY_OFFSET = 3;
+        const P_AX_OFFSET = 4;
+        const P_AY_OFFSET = 5;
+        const P_AGE_OFFSET = 6;
+        const P_HEALTH_OFFSET = 7;
+        // Color and opacity need different typed arrays, so their offsets are handled separately
+        const P_COLOR_OFFSET_BYTES = 8 * FLOAT32_SIZE; // After 8 Float32s
+        const P_OPACITY_OFFSET_BYTES = P_COLOR_OFFSET_BYTES + UINT32_SIZE; // After color
+        const P_SIZE_OFFSET_BYTES = P_OPACITY_OFFSET_BYTES + FLOAT32_SIZE; // After opacity
+
+        // Total bytes per particle: 8 Float32s + 1 Uint32 + 2 Float32s
+        const PARTICLE_BYTE_STRIDE = (8 * FLOAT32_SIZE) + UINT32_SIZE + (2 * FLOAT32_SIZE);
+
+        // Create a single ArrayBuffer to hold all particle data
+        const particleDataBuffer = new ArrayBuffer(MAX_PARTICLES * PARTICLE_BYTE_STRIDE);
+
+        // Create TypedArray views into the ArrayBuffer for each attribute
+        const p_x = new Float32Array(particleDataBuffer, P_X_OFFSET * FLOAT32_SIZE, MAX_PARTICLES);
+        const p_y = new Float32Array(particleDataBuffer, P_Y_OFFSET * FLOAT32_SIZE, MAX_PARTICLES);
+        const p_vx = new Float32Array(particleDataBuffer, P_VX_OFFSET * FLOAT32_SIZE, MAX_PARTICLES);
+        const p_vy = new Float32Array(particleDataBuffer, P_VY_OFFSET * FLOAT32_SIZE, MAX_PARTICLES);
+        const p_ax = new Float32Array(particleDataBuffer, P_AX_OFFSET * FLOAT32_SIZE, MAX_PARTICLES);
+        const p_ay = new Float32Array(particleDataBuffer, P_AY_OFFSET * FLOAT32_SIZE, MAX_PARTICLES);
+        const p_age = new Float32Array(particleDataBuffer, P_AGE_OFFSET * FLOAT32_SIZE, MAX_PARTICLES); // Age in ms
+        const p_health = new Float32Array(particleDataBuffer, P_HEALTH_OFFSET * FLOAT32_SIZE, MAX_PARTICLES); // Health metric
+
+        // Color and Opacity views need to be offset by particle index * stride + attribute offset in bytes
+        const p_color = new Uint32Array(particleDataBuffer); // Will access via byte offset calculation
+        const p_opacity = new Float32Array(particleDataBuffer); // Will access via byte offset calculation
+        const p_size = new Float32Array(particleDataBuffer); // Will access via byte offset calculation
+
+        /**
+         * Represents a single particle. It holds an ID which is its index into the TypedArrays
+         * and manages its PixiJS sprite.
+         */
+        class Particle {
+            constructor(id) {
+                this.id = id;
+                // Create a simple white sprite (which can be tinted to any color)
+                this.sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+                this.sprite.anchor.set(0.5); // Center the anchor point for rotation/scaling
+                particleContainer.addChild(this.sprite); // Add to the optimized container
+            }
+
+            /** Initializes a particle with given properties. */
+            init(x, y, vx, vy, size, color) {
+                // Store data directly in TypedArrays using the particle's ID as index
+                p_x[this.id] = x;
+                p_y[this.id] = y;
+                p_vx[this.id] = vx;
+                p_vy[this.id] = vy;
+                p_ax[this.id] = 0; // Reset acceleration
+                p_ay[this.id] = 0;
+                p_age[this.id] = 0; // Start at age 0
+                p_health[this.id] = 1; // Full health
+                p_size[this.id] = size;
+
+                // For color, opacity, size, we need to calculate the byte offset for the specific particle's data
+                // This is because TypedArrays are views over the entire buffer, not segmented per object.
+                const byteOffset = this.id * PARTICLE_BYTE_STRIDE;
+                new Uint32Array(particleDataBuffer, byteOffset + P_COLOR_OFFSET_BYTES, 1)[0] = color;
+                new Float32Array(particleDataBuffer, byteOffset + P_OPACITY_OFFSET_BYTES, 1)[0] = 1; // Full opacity initially
+                new Float32Array(particleDataBuffer, byteOffset + P_SIZE_OFFSET_BYTES, 1)[0] = size;
+
+                // Update sprite properties immediately
+                this.sprite.width = size;
+                this.sprite.height = size;
+                this.sprite.tint = color;
+                this.sprite.alpha = 1;
+                this.sprite.x = x;
+                this.sprite.y = y;
+                this.sprite.visible = true;
+            }
+
+            /** Updates the PixiJS sprite's visual properties from the TypedArray data. */
+            updateSprite() {
+                const byteOffset = this.id * PARTICLE_BYTE_STRIDE;
+                this.sprite.x = p_x[this.id];
+                this.sprite.y = p_y[this.id];
+                this.sprite.width = new Float32Array(particleDataBuffer, byteOffset + P_SIZE_OFFSET_BYTES, 1)[0];
+                this.sprite.height = new Float32Array(particleDataBuffer, byteOffset + P_SIZE_OFFSET_BYTES, 1)[0];
+                this.sprite.tint = new Uint32Array(particleDataBuffer, byteOffset + P_COLOR_OFFSET_BYTES, 1)[0];
+                this.sprite.alpha = new Float32Array(particleDataBuffer, byteOffset + P_OPACITY_OFFSET_BYTES, 1)[0];
+            }
+
+            /** Hides the particle's sprite. */
+            hide() {
+                this.sprite.visible = false;
+            }
+        }
+
+        const activeParticles = []; // Array of active Particle objects
+        const particlePool = []; // Pool of available Particle objects for reuse
+
+        // Initialize the particle pool with MAX_PARTICLES instances
+        for (let i = 0; i < MAX_PARTICLES; i++) {
+            particlePool.push(new Particle(i));
+        }
+
+        /**
+         * Creates a new particle from the pool and initializes it.
+         * @param {number} x - Initial X position.
+         * @param {number} y - Initial Y position.
+         * @returns {Particle|null} The new particle or null if pool is empty.
+         */
+        function createParticle(x, y) {
+            if (particlePool.length === 0) {
+                // console.warn("Particle pool exhausted!"); // Uncomment for debugging
+                return null; // Cannot create more particles
+            }
+            const particle = particlePool.pop(); // Get a particle from the pool
+            activeParticles.push(particle); // Add to active list
+
+            // Randomize initial properties
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * state.initialSpeed;
+            const vx = Math.cos(angle) * speed;
+            const vy = Math.sin(angle) * speed;
+            const size = Math.random() * (state.maxSize - state.minSize) + state.minSize;
+            const color = Math.random() > 0.5 ? state.baseColor : state.accentColor;
+
+            particle.init(x, y, vx, vy, size, color);
+            return particle;
+        }
+
+        /**
+         * Removes a particle, returning it to the pool.
+         * @param {Particle} particle - The particle to remove.
+         */
+        function removeParticle(particle) {
+            const index = activeParticles.indexOf(particle);
+            if (index > -1) {
+                activeParticles.splice(index, 1); // Remove from active list
+                particle.hide(); // Hide its sprite
+                particlePool.push(particle); // Return to pool for reuse
+            }
+        }
+
+        // --- Quadtree Implementation ---
+        // Used for efficient spatial querying of particles (e.g., finding neighbors for interactions)
+        class Quadtree {
+            constructor(bounds, capacity) {
+                this.bounds = bounds; // { x, y, width, height } of this node
+                this.capacity = capacity; // Max particles this node can hold before subdividing
+                this.particles = []; // Particles directly in this node
+                this.divided = false; // Whether this node has been subdivided
+            }
+
+            /** Subdivides the current node into four children nodes. */
+            subdivide() {
+                let x = this.bounds.x;
+                let y = this.bounds.y;
+                let w = this.bounds.width / 2;
+                let h = this.bounds.height / 2;
+
+                this.northwest = new Quadtree({ x: x, y: y, width: w, height: h }, this.capacity);
+                this.northeast = new Quadtree({ x: x + w, y: y, width: w, height: h }, this.capacity);
+                this.southwest = new Quadtree({ x: x, y: y + h, width: w, height: h }, this.capacity);
+                this.southeast = new Quadtree({ x: x + w, y: y + h, width: w, height: h }, this.capacity);
+                this.divided = true;
+
+                // Redistribute particles from this node into children
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    if (this.insert(p)) { // Try to insert into children
+                        this.particles.splice(i, 1); // If successful, remove from this node
+                    }
+                }
+            }
+
+            /**
+             * Inserts a particle into the quadtree.
+             * @param {Particle} particle - The particle to insert.
+             * @returns {boolean} True if successfully inserted, false otherwise.
+             */
+            insert(particle) {
+                const { id } = particle;
+                const px = p_x[id];
+                const py = p_y[id];
+
+                // Check if particle is within this node's bounds
+                if (px < this.bounds.x || px > this.bounds.x + this.bounds.width ||
+                    py < this.bounds.y || py > this.bounds.y + this.bounds.height) {
+                    return false;
+                }
+
+                // If capacity not reached and not divided, add particle directly
+                if (this.particles.length < this.capacity && !this.divided) {
+                    this.particles.push(particle);
+                    return true;
+                }
+
+                // If capacity reached, subdivide if not already, then try inserting into children
+                if (!this.divided) {
+                    this.subdivide();
+                }
+
+                return (this.northwest.insert(particle) ||
+                        this.northeast.insert(particle) ||
+                        this.southwest.insert(particle) ||
+                        this.southeast.insert(particle));
+            }
+
+            /**
+             * Queries the quadtree for particles within a given range.
+             * @param {{x: number, y: number, width: number, height: number}} range - The search area.
+             * @param {Array<Particle>} [found] - Array to accumulate found particles.
+             * @returns {Array<Particle>} List of particles found in the range.
+             */
+            query(range, found) {
+                if (!found) {
+                    found = [];
+                }
+
+                // Check if the query range intersects with this node's bounds
+                if (!(range.x < this.bounds.x + this.bounds.width &&
+                      range.x + range.width > this.bounds.x &&
+                      range.y < this.bounds.y + this.bounds.height &&
+                      range.y + range.height > this.bounds.y)) {
+                    return found; // No intersection, return empty or current found list
+                }
+
+                // Check particles directly in this node
+                for (let p of this.particles) {
+                    const px = p_x[p.id];
+                    const py = p_y[p.id];
+                    if (px >= range.x && px <= range.x + range.width &&
+                        py >= range.y && py <= range.y + range.height) {
+                        found.push(p);
+                    }
+                }
+
+                // If divided, recursively query children
+                if (this.divided) {
+                    this.northwest.query(range, found);
+                    this.northeast.query(range, found);
+                    this.southwest.query(range, found);
+                    this.southeast.query(range, found);
+                }
+                return found;
+            }
+        }
+
+        let quadtree; // Global quadtree instance
+
+        /** Rebuilds the quadtree for the current active particles. */
+        function buildQuadtree() {
+            // Reinitialize quadtree with current canvas dimensions
+            quadtree = new Quadtree({ x: 0, y: 0, width: app.screen.width, height: app.screen.height }, 8); // Capacity 8
+            for (const p of activeParticles) {
+                quadtree.insert(p);
+            }
+        }
+
+        // --- Simulation Update Loop ---
+        let lastFrameTime = performance.now(); // Initialize for delta time calculation
+        let frameCount = 0; // For FPS calculation
+        let fpsInterval = performance.now(); // Last time FPS was updated
+
+        /** Main animation loop, called by requestAnimationFrame. */
+        function animate(currentTime) {
+            requestAnimationFrame(animate); // Request next frame
+
+            if (state.paused) return; // Pause condition
+
+            const deltaTime = (currentTime - lastFrameTime) / 1000; // Delta time in seconds
+            lastFrameTime = currentTime;
+
+            // Update FPS display every second
+            frameCount++;
+            if (currentTime - fpsInterval > 1000) {
+                state.fps = Math.round(frameCount / ((currentTime - fpsInterval) / 1000));
+                uiElements.fpsDisplay.textContent = state.fps;
+                frameCount = 0;
+                fpsInterval = currentTime;
+            }
+
+            // Particle Birth: Spawn new particles based on birth rate
+            const particlesToSpawn = Math.floor(state.birthRate * deltaTime * 10); // Scale birth rate
+            for (let i = 0; i < particlesToSpawn && activeParticles.length < MAX_PARTICLES; i++) {
+                const x = Math.random() * app.screen.width;
+                const y = Math.random() * app.screen.height;
+                createParticle(x, y);
+            }
+
+            // Build quadtree for efficient neighbor lookup for inter-particle forces
+            buildQuadtree();
+
+            // Update each active particle's state
+            for (let i = activeParticles.length - 1; i >= 0; i--) {
+                const p = activeParticles[i];
+                const id = p.id;
+
+                p_age[id] += deltaTime * 1000; // Update age in milliseconds
+                const byteOffset = id * PARTICLE_BYTE_STRIDE; // Get byte offset for this particle's specific attributes
+
+                // Apply environmental forces
+                p_ay[id] += state.gravityStrength; // Gravity pulls down
+
+                const windAngleRad = state.windDirection * (Math.PI / 180);
+                p_ax[id] += Math.cos(windAngleRad) * state.windStrength;
+                p_ay[id] += Math.sin(windAngleRad) * state.windStrength;
+
+                // Turbulence: Add small random forces
+                p_ax[id] += (Math.random() - 0.5) * state.turbulenceIntensity;
+                p_ay[id] += (Math.random() - 0.5) * state.turbulenceIntensity;
+
+                // Inter-particle forces (attraction/repulsion)
+                const searchRadius = state.interactionRadius;
+                const range = {
+                    x: p_x[id] - searchRadius,
+                    y: p_y[id] - searchRadius,
+                    width: searchRadius * 2,
+                    height: searchRadius * 2
+                };
+                const nearbyParticles = quadtree.query(range);
+
+                for (const otherP of nearbyParticles) {
+                    if (p.id === otherP.id) continue; // Don't interact with self
+
+                    const otherId = otherP.id;
+                    const dx = p_x[id] - p_x[otherId];
+                    const dy = p_y[id] - p_y[otherId];
+                    const distSq = dx * dx + dy * dy;
+                    const dist = Math.sqrt(distSq);
+
+                    if (dist > 0 && dist < searchRadius) {
+                        const forceDirectionX = dx / dist;
+                        const forceDirectionY = dy / dist;
+
+                        // Repulsion: Stronger when closer (inverse square-like)
+                        const repulsionForce = state.repulsionFactor / distSq;
+                        p_ax[id] += forceDirectionX * repulsionForce;
+                        p_ay[id] += forceDirectionY * repulsionForce;
+
+                        // Attraction: Stronger when further away (linear with distance)
+                        const attractionForce = -state.attractionFactor * dist;
+                        p_ax[id] += forceDirectionX * attractionForce;
+                        p_ay[id] += forceDirectionY * attractionForce;
+                    }
+                }
+
+                // Mouse interaction (attractor/repeller)
+                if (state.mouseAttractor || state.mouseRepeller) {
+                    const dx = p_x[id] - state.mouseX;
+                    const dy = p_y[id] - state.mouseY;
+                    const distSq = dx * dx + dy * dy;
+                    const dist = Math.sqrt(distSq);
+                    const mouseInteractionRadius = 150; // Fixed radius for mouse influence
+                    if (dist > 0 && dist < mouseInteractionRadius) {
+                        const forceDirectionX = dx / dist;
+                        const forceDirectionY = dy / dist;
+                        const mouseForceMagnitude = 0.0005 / distSq; // Stronger closer
+
+                        if (state.mouseAttractor) {
+                            p_ax[id] -= forceDirectionX * mouseForceMagnitude;
+                            p_ay[id] -= forceDirectionY * mouseForceMagnitude;
+                        }
+                        if (state.mouseRepeller) {
+                            p_ax[id] += forceDirectionX * mouseForceMagnitude;
+                            p_ay[id] += forceDirectionY * mouseForceMagnitude;
+                        }
+                    }
+                }
+
+                // Update velocity and position based on acceleration
+                p_vx[id] += p_ax[id] * deltaTime;
+                p_vy[id] += p_ay[id] * deltaTime;
+                p_x[id] += p_vx[id] * deltaTime * 60; // Scale velocity for visual speed
+                p_y[id] += p_vy[id] * deltaTime * 60;
+
+                // Dampen acceleration and velocity to prevent runaway motion
+                p_ax[id] *= 0.95;
+                p_ay[id] *= 0.95;
+                p_vx[id] *= 0.99;
+                p_vy[id] *= 0.99;
+
+                // Particle Death Logic
+                const isOutOfBounds = p_x[id] < -p_size[id] || p_x[id] > app.screen.width + p_size[id] ||
+                                      p_y[id] < -p_size[id] || p_y[id] > app.screen.height + p_size[id];
+
+                if (p_age[id] >= state.lifespan || isOutOfBounds) {
+                    // If fadeOnDeath is enabled, gradually reduce opacity and size
+                    if (state.fadeOnDeath && new Float32Array(particleDataBuffer, byteOffset + P_OPACITY_OFFSET_BYTES, 1)[0] > 0.01) {
+                        new Float32Array(particleDataBuffer, byteOffset + P_OPACITY_OFFSET_BYTES, 1)[0] -= deltaTime * 2; // Fade speed
+                        new Float32Array(particleDataBuffer, byteOffset + P_SIZE_OFFSET_BYTES, 1)[0] = Math.max(0, new Float32Array(particleDataBuffer, byteOffset + P_SIZE_OFFSET_BYTES, 1)[0] - (deltaTime * 5)); // Shrink
+                        // Color shifts as it fades out, to accent color
+                        const fadeFactor = new Float32Array(particleDataBuffer, byteOffset + P_OPACITY_OFFSET_BYTES, 1)[0];
+                        new Uint32Array(particleDataBuffer, byteOffset + P_COLOR_OFFSET_BYTES, 1)[0] = lerpColor(state.accentColor, state.baseColor, fadeFactor);
+                    } else {
+                        removeParticle(p); // Remove particle if fully faded or not fading
+                    }
+                } else {
+                    // Update opacity based on age (fade in/out over lifespan)
+                    const fadeInDuration = state.lifespan * 0.1; // 10% of lifespan to fade in
+                    const fadeOutDuration = state.lifespan * 0.2; // 20% of lifespan to fade out
+
+                    if (p_age[id] < fadeInDuration) {
+                        new Float32Array(particleDataBuffer, byteOffset + P_OPACITY_OFFSET_BYTES, 1)[0] = p_age[id] / fadeInDuration;
+                    } else if (p_age[id] > state.lifespan - fadeOutDuration) {
+                        new Float32Array(particleDataBuffer, byteOffset + P_OPACITY_OFFSET_BYTES, 1)[0] = (state.lifespan - p_age[id]) / fadeOutDuration;
+                    } else {
+                        new Float32Array(particleDataBuffer, byteOffset + P_OPACITY_OFFSET_BYTES, 1)[0] = 1; // Full opacity during middle life
+                    }
+
+                    // Update color based on age (lerp between base and accent color)
+                    const colorLerpFactor = p_age[id] / state.lifespan;
+                    new Uint32Array(particleDataBuffer, byteOffset + P_COLOR_OFFSET_BYTES, 1)[0] = lerpColor(state.baseColor, state.accentColor, colorLerpFactor);
+                }
+
+                p.updateSprite(); // Ensure the PixiJS sprite reflects the updated data
+            }
+
+            // Update particle count display
+            state.particleCount = activeParticles.length;
+            uiElements.particleCountDisplay.textContent = state.particleCount;
+        }
+
+        // --- Mouse Interaction ---
+        // Update mouse coordinates for attractor/repeller functionality
+        app.view.addEventListener('mousemove', (e) => {
+            state.mouseX = e.clientX;
+            state.mouseY = e.clientY;
+        });
+
+        app.view.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                state.mouseX = e.touches[0].clientX;
+                state.mouseY = e.touches[0].clientY;
+            }
+        });
+
+
+        // --- Control Functions ---
+        /** Resets the simulation by removing all active particles. */
+        function resetSimulation() {
+            // Remove all particles by returning them to the pool
+            while (activeParticles.length > 0) {
+                removeParticle(activeParticles[0]);
+            }
+            state.particleCount = 0; // Reset count
+            uiElements.particleCountDisplay.textContent = 0;
+        }
+
+        /** Randomizes all key simulation parameters and updates the UI. */
+        function randomizeParameters() {
+            // Randomize particle properties
+            state.birthRate = parseFloat((Math.random() * 9 + 1).toFixed(1)); // 1 to 10
+            state.lifespan = parseFloat((Math.random() * 50 + 10).toFixed(0)) * 1000; // 10 to 60 seconds
+            state.initialSpeed = parseFloat((Math.random() * 9.9 + 0.1).toFixed(1)); // 0.1 to 10
+            state.minSize = parseFloat((Math.random() * 7 + 1).toFixed(1)); // 1 to 8
+            state.maxSize = parseFloat((Math.random() * 10 + 10).toFixed(1)); // 10 to 20
+            state.fadeOnDeath = Math.random() > 0.5;
+
+            // Randomize colors
+            state.baseColor = Math.floor(Math.random() * 16777215); // Random hex color
+            state.accentColor = Math.floor(Math.random() * 16777215);
+
+            // Randomize environmental forces
+            state.gravityStrength = parseFloat(((Math.random() - 0.5) * 0.2).toFixed(3)); // -0.1 to 0.1
+            state.windStrength = parseFloat(((Math.random() - 0.5) * 0.1).toFixed(3)); // -0.05 to 0.05
+            state.windDirection = parseFloat((Math.random() * 360).toFixed(0)); // 0 to 360 degrees
+            state.turbulenceIntensity = parseFloat((Math.random() * 0.05).toFixed(4)); // 0 to 0.05
+
+            // Randomize interaction parameters
+            state.attractionFactor = parseFloat((Math.random() * 0.0001).toFixed(6)); // 0 to 0.0001
+            state.repulsionFactor = parseFloat((Math.random() * 0.0001).toFixed(6)); // 0 to 0.0001
+            state.interactionRadius = parseFloat((Math.random() * 190 + 10).toFixed(0)); // 10 to 200
+
+            state.mouseAttractor = Math.random() > 0.7; // 30% chance for mouse attractor
+            state.mouseRepeller = Math.random() > 0.7; // 30% chance for mouse repeller
+
+            // Update UI elements to reflect the new randomized state
+            for (const key in uiElements) {
+                const el = uiElements[key];
+                if (el && key in state) {
+                    if (el.type === 'range') {
+                        el.value = state[key];
+                        if (key === 'lifespan') el.value = state[key] / 1000; // Convert back to seconds for UI
+                        document.getElementById(`${key}-value`).textContent = parseFloat(el.value).toFixed(el.step.includes('.') ? 3 : 0);
+                    } else if (el.type === 'checkbox') {
+                        el.checked = state[key];
+                    } else if (el.type === 'color') {
+                        el.value = '#' + state[key].toString(16).padStart(6, '0');
+                    }
+                }
+            }
+        }
+
+
+        // --- Initialize Application ---
+        window.onload = () => {
+            setupUIListeners(); // Setup UI and event handlers
+            animate(performance.now()); // Start the main animation loop
+        };
+
+        // Handle window resize events to keep canvas responsive
+        window.addEventListener('resize', () => {
+            app.resize(); // Let PixiJS handle canvas resizing
+            // Quadtree bounds will be updated automatically in the next frame's buildQuadtree() call
+        });
+    </script>
+
+    <div style="position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,0.7);color:white;padding:5px 10px;border-radius:5px;font-family:sans-serif;font-size:12px">
+        Created by Dakota Rain Lock, powered by Holy Grail. A Dakota Rain Lock Invention.
+    </div>
+    
+</body>
+</html>
